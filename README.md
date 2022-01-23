@@ -1,7 +1,7 @@
 # sbquery
-For use with SponsorBlock's sponsorTimes.csv files. Tally user vote stats of all -2 through +4 and >4 votes and can help identify outliers. 
+For use with SponsorBlock's sponsorTimes.csv files. 
 
-Tally user submissions vote counts to look for outliers.
+Tally user vote stats of all -2 through +4 and >4 votes and can help identify outliers. 
 Requires awk or mawk. Works with gawk but takes ~3.5x longer. 
 
 This started off as a one-trick pony for a special case but grew a bit to allow 
