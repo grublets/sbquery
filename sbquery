@@ -1,0 +1,150 @@
+#!/bin/bash
+
+# sbquery - v 0.2
+
+# Tally user vote stats. Counts all -2 through +4 and >4 votes and can help
+# identify outliers. 
+# grub@grub.net
+
+# Defaults
+baseDir="."
+segThresh="100" # User must have this many segments minimum to be included
+begTime="1598936400000"     # Sept 1 2020 00:00:00. Autovote gone and some buffer.
+endTime="9999999999999"     # default to most current segments in file.
+sbTimes="$baseDir/sponsorTimes.csv" 
+reportFile="$baseDir/sbquery.csv"
+header=0
+quiet=0
+spot=0
+
+getHelp() {
+    echo -e "\nsbquery - generate basic stats from a local SponsorBlock database."
+    cat <<EOF
+
+     sbquery counts all -2 through +4 and >5 votes for users specified on the command line.
+     It can also summarize votes for all users and include that in the report.
+
+    -a  Show sums and percentages of all users. First row in report.
+
+    -d  sponsorTimes.csv location. Full path and filename required.
+        Defaults to "$sbTimes"
+
+    -e  End Time of report. 
+        Default is 9999999999999 (Nov. 20, 2286).
+
+    -h  Include column headers.
+
+    -n  [number of segments] Minimum number of segments a user must have to be included. 
+        Doesn't affect -a results.
+
+    -q  Quiet. 
+        No screen output.
+
+    -r  [filename] Report path and filename. 
+        Default is ./sbquery.csv
+
+    -s  Start Time of report. Default is 1598936400000 (September 1, 2020).
+        Soon after the autovote function was removed with some added time
+        for padding.
+
+    -u  [UUID]  User UUID to report, can have multiple instances.
+
+    -?  Help. This screen.
+
+Caveats: 
+    - Does not (yet?) filter Hidden or ShadowHidden segments.
+    
+EOF
+}
+
+# ah yes, feature creep.
+while getopts "ae:hn:qr:s:u:" options; do
+    case ${options} in
+        a)  allUUIDs="all ";;
+        d)  sbTimes="$OPTARG";;
+        e)  endTime="$OPTARG";;
+        h)  header=1;;
+        n)  segThresh="$OPTARG";;
+        q)  quiet=1;;
+        r)  reportFile="$OPTARG";;
+        s)  startTime="$OPTARG";;
+        u)  uuids+=" $OPTARG";;
+        ?)  echo "Unknown option $OPTARG"
+                getHelp
+                exit 1;;
+        *)  getHelp
+                exit 1;;
+    esac
+done
+
+if [ $# = 0 ]; then
+    echo -e "\nNo options selected."
+    getHelp
+    exit 1
+fi
+
+if [ $header -eq 1 ]; then 
+    echo "userID,#Segments,#-2,%-2,#-1,%-1,#0,%0,#1,%1,#2,%2,#3,%3,#4,%4,#>4,%>4" > $reportFile
+fi
+
+uuids="$allUUIDs$uuids"
+
+numUUIDs=$(wc -w <<< "$uuids")
+for uuid in $uuids
+do
+    ((spot++)) 
+    if [ $quiet -eq 0 ]; then echo -ne "$spot/$numUUIDs: $uuid          \r"; fi
+
+    # awk brute force majick
+    mawk -F "," -v uuid="$uuid" -v vote="$vote" -v results="$reportFile" \
+        -v segThresh="$segThresh" -v begTime="$begTime" -v endTime="$endTime" \
+        -v header="$header" '
+
+    BEGIN {   
+        FS=","
+        OFS=","
+    } 
+
+    {
+        if ($8 == uuid && $9 > begTime && 9 < endTime) {  
+                nSeg++
+                if ($4 == -2) vn2++
+                    else if ($4 == -1) vn1++
+                    else if ($4 == 0) v0++
+                    else if ($4 == 1) v1++
+                    else if ($4 == 2) v2++
+                    else if ($4 == 3) v3++
+                    else if ($4 == 4) v4++
+                    else vgt4++
+            }
+        
+        else if ($9 > begTime && 9 < endTime) {
+            if (uuid == "all")   {
+                nSeg++
+                if ($4 == -2) vn2++
+                    else if ($4 == -1) vn1++
+                    else if ($4 == 0) v0++
+                    else if ($4 == 1) v1++
+                    else if ($4 == 2) v2++
+                    else if ($4 == 3) v3++
+                    else if ($4 == 4) v4++
+                    else vgt4++
+                }
+            }     
+        }
+
+    END {   
+            if (nSeg >= segThresh) {
+                printf "%s,%d,%d,%.2f,%d,%.2f,%d,%.2f,%d,%.2f,%d,%.2f,%d,%.2f,%d,%.2f,%d,%.2f\n",
+                uuid,nSeg,vn2,vn2/nSeg*100,vn1,vn1/nSeg*100,v0,v0/nSeg*100,
+                one,one/nSeg*100,v2,v2/nSeg*100,v3,v3/nSeg*100,v4,v4/nSeg*100,
+                vgt4,vgt4/nSeg*100 >> results
+            }
+ 
+    }
+    ' $sbTimes
+done
+
+if [ $quiet -eq 0 ]; then echo -e "\n\nDone! Results in $reportFile\n"; fi
+
+exit 0
