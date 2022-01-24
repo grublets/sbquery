@@ -83,8 +83,10 @@ if [ $# = 0 ]; then
     exit 1
 fi
 
+if [ -f "$reportFile" ]; then rm "$reportFile"; fi
+
 if [ $header -eq 1 ]; then 
-    echo "userID,#Segments,#-2,%-2,#-1,%-1,#0,%0,#1,%1,#2,%2,#3,%3,#4,%4,#>4,%>4" > $reportFile
+    echo "userID,#Segments,#-2,%-2,#-1,%-1,#0,%0,#1,%1,#2,%2,#3,%3,#4,%4,#>4,%>4" > "$reportFile"
 fi
 
 uuids="$allUUIDs$uuids"
